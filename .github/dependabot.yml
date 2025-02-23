@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # common configuration
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+
+  # test harnsess configuration
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "daily"

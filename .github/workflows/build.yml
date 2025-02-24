@@ -1,0 +1,153 @@
+name: Rebuild Bowtie Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: >
+          A specific version of the implementation you want to build.
+
+          If the implementation has historical version support (i.e. a `matrix-versions.json` file)
+          and your specified version is included in that file then only that version of the implementation
+          will be built and if you don't specify any version over here then all of its versions from that
+          file will be built.
+
+          If no file is found then just the latest version of the implementation will be built.
+        required: false
+        type: string
+  pull_request:
+  push:
+    branches-ignore:
+      - "wip*"
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.images-matrix.outputs.images }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Calculate which impages to build
+        id: images-matrix
+        run: |
+          version=${{ inputs.version }}
+          matrix_versions_file="matrix-versions.json"
+          MATRIX="[]"
+          if [ -f "$matrix_versions_file" ]; then
+            versions=$(cat "$matrix_versions_file" | jq -c)
+            if [ -n "$version" ]; then
+              if echo "$versions" | jq -e --arg version "$version" 'index($version) != null' > /dev/null; then
+                MATRIX="[{"version": $version}]"
+              else
+                echo "No such version ('$version') found in the \`matrix-versions.json\` file of $implementation. Please provide a correct version."
+                exit 1
+              fi
+            else
+              MATRIX=$(jq --argjson vers "$versions" '["version": $vers[]}]'
+            fi
+          else
+            MATRIX="[{"version": "latest"}]"
+          fi
+          echo "images=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
+
+  build:
+    needs: list
+
+    # Particularly for .NET (which we special case below),
+    # we need a newer buildah than what's in 22.04 (which is buildah 1.23.1)
+    # so that it properly sets TARGETARCH and therefore multi-architecture
+    # container image builds know which architecture we're building for.
+    # See https://github.com/containers/buildah/pull/4295.
+    runs-on: ubuntu-24.04
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.list.outputs.images) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: echo "name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+        id: impl
+
+      - name: Install qemu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+        if: (!startsWith(steps.impl.outputs.name, 'dotnet-'))
+        # See https://devblogs.microsoft.com/dotnet/improving-multiplatform-container-support/ for why not .NET
+
+      - name: Build
+        id: build_image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: '.'
+          containerfiles: |
+            Dockerfile
+          image: ${{ steps.impl.outputs.name }}
+          tags: ${{ matrix.version }} ${{ github.sha }}
+          archs: amd64, arm64
+          build-args: |
+            ${{ matrix.version && format('IMPLEMENTATION_VERSION={0}', matrix.version) || '' }}
+
+      - name: Set DOCKER_HOST so podman-built images are findable
+        run: |
+          systemctl --user enable --now podman.socket
+          sudo loginctl enable-linger $USER
+          podman --remote info
+          echo "DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')" >> $GITHUB_ENV
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Smoke Test
+        run: |
+          uvx --from . --python 3.13 bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format json
+          uvx --from . --python 3.13 bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format markdown >> $GITHUB_STEP_SUMMARY
+
+      - name: Log in to ghcr.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+
+      - name: Publish
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+
+      - name: Generate attestation for images
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')

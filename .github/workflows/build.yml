@@ -59,7 +59,7 @@ jobs:
               MATRIX=$(jq --argjson vers "$versions" '["version": $vers[]}]')
             fi
           else
-            MATRIX="[{"version": "latest"}]"
+            MATRIX='[{"version": "latest"}]'
           fi
           echo "images=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
 

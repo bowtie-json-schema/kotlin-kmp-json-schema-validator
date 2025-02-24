@@ -151,3 +151,20 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+
+  automerge:
+    needs: build
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Automatically merge allowed PRs
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

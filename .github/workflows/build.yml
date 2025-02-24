@@ -106,7 +106,7 @@ jobs:
           tags: ${{ matrix.version }} ${{ github.sha }}
           archs: amd64, arm64
           build-args: |
-            ${{ matrix.version && format('IMPLEMENTATION_VERSION={0}', matrix.version) || '' }}
+            ${{ format('IMPLEMENTATION_VERSION={0}', matrix.version) }}
 
       - name: Set DOCKER_HOST so podman-built images are findable
         run: |

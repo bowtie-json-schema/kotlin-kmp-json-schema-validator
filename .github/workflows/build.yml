@@ -142,7 +142,9 @@ jobs:
           ref: ${{ github.event.before }}
 
       - name: Mark the current head with the latest version before the update
-        run: git tag v${{ needs.build.outputs.current-version }} && git push origin v${{ needs.build.outputs.current-version }}
+        env:
+          TAG: v${{ needs.meta.outputs.latest-version }}
+        run: git tag $TAG && git push origin $TAG
 
   automerge:
     needs: build

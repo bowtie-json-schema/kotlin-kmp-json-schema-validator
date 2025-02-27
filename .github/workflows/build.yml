@@ -107,7 +107,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
           registry: ${{ env.IMAGE_REGISTRY }}
-        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
       - name: Publish
         id: push
@@ -116,7 +116,7 @@ jobs:
           image: ${{ steps.build_image.outputs.image }}
           tags: ${{ steps.current-version.outputs.value }} ${{ steps.build_image.outputs.tags }}
           registry: ${{ env.IMAGE_REGISTRY }}
-        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
       - name: Generate attestation for images
         uses: actions/attest-build-provenance@v2
@@ -124,13 +124,13 @@ jobs:
           subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-        if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-  version-changed:
+  mark-previous-version:
     needs: [build, meta]
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request' && needs.build.outputs.current-version != needs.meta.outputs.latest-version
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.current-version != needs.meta.outputs.latest-version
 
     permissions:
       contents: write
@@ -139,13 +139,13 @@ jobs:
       - name: Checkout current head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event.before }}
 
       - name: Mark the current head with the latest version before the update
         run: git tag v${{ needs.build.outputs.current-version }} && git push origin v${{ needs.build.outputs.current-version }}
 
   automerge:
-    needs: [build, version-changed]
+    needs: build
     runs-on: ubuntu-latest
 
     if: (!cancelled() && github.event_name == 'pull_request' && github.actor == 'dependabot[bot]')

@@ -37,7 +37,7 @@ jobs:
         run: |
           version=$(uvx --from 'bowtie-json-schema' --python 3.13 bowtie info \
               --implementation ${{ steps.impl.outputs.name }} \
-              --format json | jq '.version // empty')
+              --format json | jq -r '.version // empty')
           echo "value=${version}" >> $GITHUB_OUTPUT
 
   build:
@@ -95,7 +95,7 @@ jobs:
         run: |
           version=$(uvx --from 'bowtie-json-schema' --python 3.13 bowtie info \
               --implementation "localhost/${{ steps.build_image.outputs.image-with-tag }}" \
-              --format json | jq '.version // empty')
+              --format json | jq -r '.version // empty')
           echo "value=${version}" >> $GITHUB_OUTPUT
 
       - name: Print collected versions

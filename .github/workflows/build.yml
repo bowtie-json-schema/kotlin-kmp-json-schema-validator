@@ -98,6 +98,9 @@ jobs:
               --format json | jq '.version // empty')
           echo "value=${version}" >> $GITHUB_OUTPUT
 
+      - name: Print collected versions
+        run: echo "latest_version=${{ needs.meta.outputs.latest-version }}; current_version=${{ steps.current-version.outputs.value }}"
+
       - name: Log in to ghcr.io
         uses: redhat-actions/podman-login@v1
         with:

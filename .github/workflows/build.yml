@@ -2,19 +2,6 @@ name: Rebuild Bowtie Image
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: >
-          A specific version of the implementation you want to build.
-
-          If the implementation has historical version support (i.e. a `matrix-versions.json` file)
-          and your specified version is included in that file then only that version of the implementation
-          will be built and if you don't specify any version over here then all of its versions from that
-          file will be built.
-
-          If no file is found then just the latest version of the implementation will be built.
-        required: false
-        type: string
   pull_request:
   push:
     branches-ignore:
@@ -28,10 +15,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  list:
+  meta:
     runs-on: ubuntu-latest
     outputs:
-      images: ${{ steps.images-matrix.outputs.images }}
+      latest-version: ${{ steps.version.outputs.value }}
+      implementation-name: ${{ steps.impl.outputs.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,38 +28,25 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Calculate which impages to build
-        id: images-matrix
+      - name: Compute implementation name
+        id: impl
+        run: echo "name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Compute latest implementation version
+        id: version
         run: |
-          version=${{ inputs.version }}
-          matrix_versions_file="matrix-versions.json"
-          MATRIX="[]"
-          if [ -f "$matrix_versions_file" ]; then
-            versions=$(cat "$matrix_versions_file" | jq -c)
-            if [ -n "$version" ]; then
-              if echo "$versions" | jq -e --arg version "$version" 'index($version) != null' > /dev/null; then
-                MATRIX="[{"version": $version}]"
-              else
-                echo "No such version ('$version') found in the \`matrix-versions.json\` file of $implementation. Please provide a correct version."
-                exit 1
-              fi
-            else
-              MATRIX=$(jq --argjson vers "$versions" '["version": $vers[]}]')
-            fi
-          else
-            MATRIX='[{"version": "latest"}]'
-          fi
-          echo "images=$(echo $MATRIX | jq -c .)" >> $GITHUB_OUTPUT
+          version=$(uvx --from 'bowtie-json-schema' --python 3.13 bowtie info \
+              --implementation ${{ steps.impl.outputs.name }} \
+              --format json | jq '.version // empty')
+          echo "value=${version}" >> $GITHUB_OUTPUT
 
   build:
-    needs: list
+    needs: meta
 
-    # Particularly for .NET (which we special case below),
-    # we need a newer buildah than what's in 22.04 (which is buildah 1.23.1)
-    # so that it properly sets TARGETARCH and therefore multi-architecture
-    # container image builds know which architecture we're building for.
-    # See https://github.com/containers/buildah/pull/4295.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+
+    outputs:
+      current-version: ${{ steps.current-version.outputs.value }}
 
     permissions:
       id-token: write
@@ -79,16 +54,8 @@ jobs:
       attestations: write
       packages: write
 
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.list.outputs.images) }}
-
     steps:
       - uses: actions/checkout@v4
-
-      - run: echo "name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
-        id: impl
 
       - name: Install qemu
         run: |
@@ -102,11 +69,9 @@ jobs:
           context: '.'
           containerfiles: |
             Dockerfile
-          image: ${{ steps.impl.outputs.name }}
-          tags: ${{ matrix.version }} ${{ github.sha }}
+          image: ${{ needs.meta.outputs.implementation-name }}
+          tags: ${{ github.sha }}
           archs: amd64, arm64
-          build-args: |
-            ${{ format('IMPLEMENTATION_VERSION={0}', matrix.version) }}
 
       - name: Set DOCKER_HOST so podman-built images are findable
         run: |
@@ -125,6 +90,14 @@ jobs:
           uvx --from 'bowtie-json-schema' --python 3.13 bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format json
           uvx --from 'bowtie-json-schema' --python 3.13 bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format markdown >> $GITHUB_STEP_SUMMARY
 
+      - name: Collect current version
+        id: current-version
+        run: |
+          version=$(uvx --from 'bowtie-json-schema' --python 3.13 bowtie info \
+              --implementation "localhost/${{ steps.build_image.outputs.image-with-tag }}" \
+              --format json | jq '.version // empty')
+          echo "value=${version}" >> $GITHUB_OUTPUT
+
       - name: Log in to ghcr.io
         uses: redhat-actions/podman-login@v1
         with:
@@ -138,7 +111,7 @@ jobs:
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ${{ steps.build_image.outputs.image }}
-          tags: ${{ steps.build_image.outputs.tags }}
+          tags: ${{ steps.current-version.outputs.value }} ${{ github.sha }} ${{ github.ref == 'refs/heads/main' && 'latest' || '' }}
           registry: ${{ env.IMAGE_REGISTRY }}
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
 
@@ -150,11 +123,29 @@ jobs:
           push-to-registry: true
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
 
-  automerge:
-    needs: build
+  version-changed:
+    needs: [build, meta]
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    if: github.event_name == 'pull_request' && needs.build.outputs.current-version != needs.meta.outputs.latest-version
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout current head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Mark the current head with the latest version before the update
+        run: git tag v${{ needs.build.outputs.current-version }} && git push origin v${{ needs.build.outputs.current-version }}
+
+  automerge:
+    needs: [build, version-changed]
+    runs-on: ubuntu-latest
+
+    if: (!cancelled() && github.event_name == 'pull_request' && github.actor == 'dependabot[bot]')
 
     permissions:
       contents: write

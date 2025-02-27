@@ -70,7 +70,7 @@ jobs:
           containerfiles: |
             Dockerfile
           image: ${{ needs.meta.outputs.implementation-name }}
-          tags: ${{ github.sha }}
+          tags: ${{ github.sha }} ${{ github.ref == 'refs/heads/main' && 'latest' || '' }}
           archs: amd64, arm64
 
       - name: Set DOCKER_HOST so podman-built images are findable
@@ -111,7 +111,7 @@ jobs:
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ${{ steps.build_image.outputs.image }}
-          tags: ${{ steps.current-version.outputs.value }} ${{ github.sha }} ${{ github.ref == 'refs/heads/main' && 'latest' || '' }}
+          tags: ${{ steps.current-version.outputs.value }} ${{ steps.build_image.outputs.tags }}
           registry: ${{ env.IMAGE_REGISTRY }}
         if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
 

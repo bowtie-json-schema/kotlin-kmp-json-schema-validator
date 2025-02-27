@@ -109,6 +109,10 @@ jobs:
           registry: ${{ env.IMAGE_REGISTRY }}
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
+      - name: Add tag with version to the image
+        run: podman tag ${{ steps.build_image.outputs.image-with-tag }} ${{ steps.build_image.outputs.image }}:${{ steps.current-version.outputs.value }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
       - name: Publish
         id: push
         uses: redhat-actions/push-to-registry@v2

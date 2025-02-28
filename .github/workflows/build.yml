@@ -139,16 +139,39 @@ jobs:
     permissions:
       contents: write
 
+    env:
+      TAG: v${{ needs.meta.outputs.latest-version }}
+      COMMIT: ${{ github.event.before }}
+
     steps:
       - name: Checkout current head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.before }}
+          ref: ${{ env.COMMIT }}
 
-      - name: Mark the current head with the latest version before the update
+      - name: Create a tag to mark previous latest version
         env:
-          TAG: v${{ needs.meta.outputs.latest-version }}
-        run: git tag $TAG && git push origin $TAG
+          COMMIT: ${{ env.COMMIT }}
+        run: >
+          gh api
+          --method POST
+          -H "Accept: application/vnd.github+json"
+          -H "X-GitHub-Api-Version: 2022-11-28"
+          /repos/${{ github.repository }}/git/refs
+          -f "ref=refs/tags/$TAG"
+          -f "sha=$COMMIT"
+      - name: Create release assotiated with the tag
+        run: >
+          gh api
+          --method POST
+          -H "Accept: application/vnd.github+json"
+          -H "X-GitHub-Api-Version: 2022-11-28"
+          /repos/${{ github.repository }}/releases
+          -f "tag_name=$TAG"
+          -f "name=$TAG"
+          -f "body=Automatic release for $TAG"
+          -f "generate_release_notes=true"
+
 
   automerge:
     needs: build

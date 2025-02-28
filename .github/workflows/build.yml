@@ -136,16 +136,19 @@ jobs:
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.current-version != needs.meta.outputs.latest-version
 
+    permissions:
+      contents: write
+
     env:
       TAG: v${{ needs.meta.outputs.latest-version }}
       COMMIT: ${{ github.event.before }}
-      GH_TOKEN: ${{ secrets.PAT_GITHUB }}
 
     steps:
 
       - name: Create a tag to mark previous latest version
         env:
           COMMIT: ${{ env.COMMIT }}
+          GH_TOKEN: ${{ secrets.PAT_GITHUB }}
         run: >
           gh api
           --method POST
@@ -156,6 +159,8 @@ jobs:
           -f "sha=$COMMIT"
 
       - name: Create release assotiated with the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: >
           gh api
           --method POST

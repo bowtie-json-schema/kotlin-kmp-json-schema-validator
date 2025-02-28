@@ -136,19 +136,12 @@ jobs:
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.current-version != needs.meta.outputs.latest-version
 
-    permissions:
-      contents: write
-
     env:
       TAG: v${{ needs.meta.outputs.latest-version }}
       COMMIT: ${{ github.event.before }}
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.PAT_GITHUB }}
 
     steps:
-      - name: Checkout current head
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.COMMIT }}
 
       - name: Create a tag to mark previous latest version
         env:
@@ -161,6 +154,7 @@ jobs:
           /repos/${{ github.repository }}/git/refs
           -f "ref=refs/tags/$TAG"
           -f "sha=$COMMIT"
+
       - name: Create release assotiated with the tag
         run: >
           gh api
@@ -171,7 +165,7 @@ jobs:
           -f "tag_name=$TAG"
           -f "name=$TAG"
           -f "body=Automatic release for $TAG"
-          -f "generate_release_notes=true"
+          -F "generate_release_notes=true"
 
 
   automerge:

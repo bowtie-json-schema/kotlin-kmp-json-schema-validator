@@ -10,20 +10,16 @@ env:
 jobs:
   versions:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       revisions: ${{ steps.revisions.outputs.value }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
       - name: Collect available versions
         id: revisions
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          tags=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/releases | jq -c '. | map(.tag_name)')
+          tags=$(jq -c -n '$ARGS.positional + ["main"]' --args $(git tag --list))
           echo "value=$(echo $tags | jq -c .)" >> $GITHUB_OUTPUT
 
   build:

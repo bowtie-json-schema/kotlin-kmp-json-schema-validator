@@ -59,6 +59,7 @@ jobs:
         uses: bowtie-json-schema/bowtie@main
 
       - name: Install qemu
+        if: false
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-user-static

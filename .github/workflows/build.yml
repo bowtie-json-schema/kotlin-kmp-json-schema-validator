@@ -73,7 +73,7 @@ jobs:
             Dockerfile
           image: ${{ needs.meta.outputs.implementation-name }}
           tags: ${{ github.sha }} ${{ github.ref == 'refs/heads/main' && 'latest' || '' }}
-          platforms: linux/amd64, linux/arm64
+          archs: amd64, arm64
 
       - name: Set DOCKER_HOST so podman-built images are findable
         run: |

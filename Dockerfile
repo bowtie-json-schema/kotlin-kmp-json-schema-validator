@@ -1,5 +1,4 @@
-FROM --platform=$TARGETPLATFORM gradle:8.12.1-jdk17 AS builder
-ARG TARGETPLATFORM
+FROM --platform=$BUILDPLATFORM gradle:8.12.1-jdk17 AS builder
 ARG BUILDPLATFORM
 WORKDIR /opt/app
 COPY gradle/libs.versions.toml gradle/

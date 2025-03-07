@@ -1,4 +1,4 @@
-FROM gradle:8.12.1-jdk17-ubi AS builder
+FROM gradle:8.13-jdk21-ubi-minimal AS builder
 WORKDIR /opt/app
 COPY gradle/libs.versions.toml gradle/
 COPY settings.gradle.kts .

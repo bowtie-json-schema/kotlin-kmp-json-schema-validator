@@ -17,6 +17,8 @@ jobs:
     steps:
       - name: Collect available versions
         id: revisions
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           tags=$(gh api \
             -H "Accept: application/vnd.github+json" \

@@ -40,14 +40,12 @@ jobs:
         with:
           ref: ${{ matrix.revision }}
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-
       - name: Compute implementation name
         id: impl
         run: echo "name=$(echo '${{ github.repository }}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Install bowtie
+        uses: bowtie-json-schema/bowtie@main
 
       - name: Build
         id: build_image
@@ -69,13 +67,13 @@ jobs:
 
       - name: Smoke Test
         run: |
-          uvx --from 'bowtie-json-schema' --python 3.13 bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format json
-          uvx --from 'bowtie-json-schema' --python 3.13 bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format markdown >> $GITHUB_STEP_SUMMARY
+          bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format json
+          bowtie smoke -i "localhost/${{ steps.build_image.outputs.image-with-tag }}" --format markdown >> $GITHUB_STEP_SUMMARY
 
       - name: Collect current version
         id: current-version
         run: |
-          version=$(uvx --from 'bowtie-json-schema' --python 3.13 bowtie info \
+          version=$(bowtie info \
               --implementation "localhost/${{ steps.build_image.outputs.image-with-tag }}" \
               --format json | jq -r '.version // empty')
           echo "value=${version}" >> $GITHUB_OUTPUT

@@ -64,6 +64,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y qemu-user-static
 
+      - name: Try raw podman
+        run: >
+          podman build
+          --platform linux/amd64,linux/arm64
+          --manifest
+          ${{ needs.meta.outputs.implementation-name }}
+          .
+
       - name: Build
         id: build_image
         uses: redhat-actions/buildah-build@v2

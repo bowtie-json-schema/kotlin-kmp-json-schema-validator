@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM gradle:8.13-jdk21-ubi-minimal AS builder
+FROM --platform=$BUILDPLATFORM gradle:8.12.1-jdk17 AS builder
 WORKDIR /opt/app
 COPY gradle/libs.versions.toml gradle/
 COPY settings.gradle.kts .

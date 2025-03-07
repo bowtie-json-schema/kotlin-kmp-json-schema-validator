@@ -2,6 +2,7 @@ name: Build Bowtie Image for all available versions
 
 on:
   workflow_dispatch:
+  push:
 
 env:
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
@@ -20,7 +21,7 @@ jobs:
           tags=$(gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/releases | jq -c '. | map(.tag_name) + ["main"]')
+            /repos/${{ github.repository }}/releases | jq -c '. | map(.tag_name)')
           echo "value=$(echo $tags | jq -c .)" >> $GITHUB_OUTPUT
 
   build:

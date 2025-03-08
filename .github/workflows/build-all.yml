@@ -6,6 +6,8 @@ on:
 env:
   IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
 
+permissions: {}
+
 jobs:
   versions:
     runs-on: ubuntu-latest

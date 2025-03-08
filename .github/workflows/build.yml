@@ -24,6 +24,8 @@ jobs:
       implementation-name: ${{ steps.impl.outputs.name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install bowtie
         uses: bowtie-json-schema/bowtie@main
@@ -56,6 +58,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install bowtie
         uses: bowtie-json-schema/bowtie@main

@@ -34,7 +34,7 @@ jobs:
         id: impl
         env:
           GH_REPOSITORY: ${{ github.repository }}
-        run: echo "name=$(echo '${GH_REPOSITORY}' | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+        run: echo "name=$(echo ${GH_REPOSITORY} | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
 
       - name: Compute latest implementation version
         id: version

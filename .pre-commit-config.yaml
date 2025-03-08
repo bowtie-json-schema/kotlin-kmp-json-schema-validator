@@ -14,6 +14,10 @@ repos:
       - id: mixed-line-ending
         args: [--fix, lf]
       - id: trailing-whitespace
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.4.1
+    hooks:
+    - id: zizmor
 
   # test harness specific hooks
   - repo: https://github.com/dustinsand/pre-commit-jvm

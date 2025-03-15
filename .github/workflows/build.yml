@@ -1,0 +1,188 @@
+name: Rebuild Bowtie Image
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches-ignore:
+      - "wip*"
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      latest-version: ${{ steps.version.outputs.value }}
+      implementation-name: ${{ steps.impl.outputs.name }}
+    steps:
+
+      - name: Install bowtie
+        uses: bowtie-json-schema/bowtie@main
+
+      - name: Compute implementation name
+        id: impl
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+        run: echo "name=$(echo ${GH_REPOSITORY} | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Compute latest implementation version
+        id: version
+        env:
+          IMPL_NAME: ${{ steps.impl.outputs.name }}
+        run: |
+          version=$(bowtie info \
+              --implementation ${IMPL_NAME} \
+              --format json | jq -r '.version // empty')
+          echo "value=${version}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: meta
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      current-version: ${{ steps.current-version.outputs.value }}
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install bowtie
+        uses: bowtie-json-schema/bowtie@main
+
+      - name: Build
+        id: build_image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: '.'
+          containerfiles: |
+            Dockerfile
+          image: ${{ needs.meta.outputs.implementation-name }}
+          tags: ${{ github.sha }} ${{ github.ref == 'refs/heads/main' && 'latest' || '' }}
+          archs: amd64, arm64
+
+      - name: Set DOCKER_HOST so podman-built images are findable
+        run: |
+          systemctl --user enable --now podman.socket
+          sudo loginctl enable-linger $USER
+          podman --remote info
+          echo "DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')" >> $GITHUB_ENV
+
+      - name: Smoke Test
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+        run: |
+          bowtie smoke -i "localhost/${IMAGE_WITH_TAG}" --format json
+          bowtie smoke -i "localhost/${IMAGE_WITH_TAG}" --format markdown >> $GITHUB_STEP_SUMMARY
+
+      - name: Collect current version
+        id: current-version
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+        run: |
+          version=$(bowtie info \
+              --implementation "localhost/${IMAGE_WITH_TAG}" \
+              --format json | jq -r '.version // empty')
+          echo "value=${version}" >> $GITHUB_OUTPUT
+
+      - name: Print collected versions
+        env:
+          LATEST_VERSION: ${{ needs.meta.outputs.latest-version }}
+          CURRENT_VERSION: ${{ steps.current-version.outputs.value }}
+        run: echo "latest_version=${LATEST_VERSION}; current_version=${CURRENT_VERSION}"
+
+      - name: Log in to ghcr.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+      - name: Add tag with version to the image
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+          IMAGE_WITH_VERSION: "${{ steps.build_image.outputs.image }}:${{ steps.current-version.outputs.value }}"
+        run: podman tag ${IMAGE_WITH_TAG} ${IMAGE_WITH_VERSION}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+      - name: Publish
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.current-version.outputs.value }} ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+      - name: Generate attestation for images
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+  mark-previous-version:
+    needs: [build, meta]
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.build.outputs.current-version != needs.meta.outputs.latest-version
+
+    permissions:
+      contents: write
+
+    env:
+      TAG: v${{ needs.meta.outputs.latest-version }}
+      COMMIT: ${{ github.event.before }}
+      GH_REPOSITORY: ${{ github.repository }}
+
+    steps:
+
+      - name: Create a release for previous implementation version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          gh api
+          --method POST
+          -H "Accept: application/vnd.github+json"
+          -H "X-GitHub-Api-Version: 2022-11-28"
+          /repos/${GH_REPOSITORY}/releases
+          -f "tag_name=$TAG"
+          -f "target_commitish=$COMMIT"
+          -f "name=$TAG"
+          -f "body=Automatic release for $TAG"
+          -F "generate_release_notes=true"
+
+
+  automerge:
+    needs: build
+    runs-on: ubuntu-latest
+
+    if: (!cancelled() && github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]')
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Automatically merge allowed PRs
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

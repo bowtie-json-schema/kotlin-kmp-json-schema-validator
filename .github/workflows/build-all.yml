@@ -1,0 +1,121 @@
+name: Build Bowtie Image for all available versions
+
+on:
+  workflow_dispatch:
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+permissions: {}
+
+jobs:
+  versions:
+    runs-on: ubuntu-latest
+    outputs:
+      revisions: ${{ steps.revisions.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Collect available versions
+        id: revisions
+        run: |
+          tags=$(jq -c -n '$ARGS.positional + ["main"]' --args $(git tag --list))
+          echo "value=$(echo $tags | jq -c .)" >> $GITHUB_OUTPUT
+
+  build:
+    needs: versions
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        revision: ${{ fromJson(needs.versions.outputs.revisions) }}
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ matrix.revision }}
+
+      - name: Compute implementation name
+        id: impl
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+        run: echo "name=$(echo ${GH_REPOSITORY} | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Install bowtie
+        uses: bowtie-json-schema/bowtie@main
+
+      - name: Build
+        id: build_image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: '.'
+          containerfiles: |
+            Dockerfile
+          image: ${{ steps.impl.outputs.name }}
+          tags: ${{ github.sha }} ${{ matrix.revision == 'main' && 'latest' || '' }}
+          archs: amd64, arm64
+
+      - name: Set DOCKER_HOST so podman-built images are findable
+        run: |
+          systemctl --user enable --now podman.socket
+          sudo loginctl enable-linger $USER
+          podman --remote info
+          echo "DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')" >> $GITHUB_ENV
+
+      - name: Smoke Test
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+        run: |
+          bowtie smoke -i "localhost/${IMAGE_WITH_TAG}" --format json
+          bowtie smoke -i "localhost/${IMAGE_WITH_TAG}" --format markdown >> $GITHUB_STEP_SUMMARY
+
+      - name: Collect current version
+        id: current-version
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+        run: |
+          version=$(bowtie info \
+              --implementation "localhost/${IMAGE_WITH_TAG}" \
+              --format json | jq -r '.version // empty')
+          echo "value=${version}" >> $GITHUB_OUTPUT
+
+      - name: Print collected version
+        env:
+          CURRENT_VERSION: ${{ steps.current-version.outputs.value }}
+        run: echo "current_version=${CURRENT_VERSION}"
+
+      - name: Log in to ghcr.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Add tag with version to the image
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+          IMAGE_WITH_VERSION: "${{ steps.build_image.outputs.image }}:${{ steps.current-version.outputs.value }}"
+        run: podman tag ${IMAGE_WITH_TAG} ${IMAGE_WITH_VERSION}
+
+      - name: Publish
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.current-version.outputs.value }} ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+
+      - name: Generate attestation for images
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

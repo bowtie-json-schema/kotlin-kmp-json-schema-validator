@@ -1,0 +1,31 @@
+repos:
+  # common hooks - should be added to template project
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-json
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix, lf]
+      - id: trailing-whitespace
+  - repo: https://github.com/woodruffw/zizmor-pre-commit
+    rev: v1.4.1
+    hooks:
+    - id: zizmor
+
+  # test harness specific hooks
+  - repo: https://github.com/dustinsand/pre-commit-jvm
+    rev: v0.11.0
+    hooks:
+      - name: ktlint (java/kotlin implementations)
+        id: ktlint
+        args: [--format]
+      - name: detekt (java/kotlin implementations)
+        id: detekt
+        args: ["--build-upon-default-config"]

@@ -1,0 +1,114 @@
+name: Build test harness image
+
+on:
+  workflow_call:
+    inputs:
+      image-name:
+        type: string
+        required: true
+        description: 'Name for the image to build'
+      publish-image:
+        type: boolean
+        default: false
+        description: 'Enables built image publication'
+      is-latest:
+        type: boolean
+        default: false
+        description: 'If image is the latest a corresponding tag is added to the image'
+    outputs:
+      current-version:
+        description: 'Version of the implementation from the built image'
+        value: ${{ jobs.build.outputs.current-version }}
+
+permissions: {}
+
+env:
+  IMAGE_REGISTRY: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      current-version: ${{ steps.current-version.outputs.value }}
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install bowtie
+        uses: bowtie-json-schema/bowtie@main
+
+      - name: Build
+        id: build_image
+        uses: redhat-actions/buildah-build@v2
+        with:
+          context: '.'
+          containerfiles: |
+            Dockerfile
+          image: ${{ inputs.image-name }}
+          tags: ${{ github.sha }} ${{ inputs.is-latest && 'latest' || '' }}
+          archs: amd64, arm64
+
+      - name: Set DOCKER_HOST so podman-built images are findable
+        run: |
+          systemctl --user enable --now podman.socket
+          sudo loginctl enable-linger $USER
+          podman --remote info
+          echo "DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')" >> $GITHUB_ENV
+
+      - name: Smoke Test
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+        run: |
+          bowtie smoke -i "localhost/${IMAGE_WITH_TAG}" --format json
+          bowtie smoke -i "localhost/${IMAGE_WITH_TAG}" --format markdown >> $GITHUB_STEP_SUMMARY
+
+      - name: Collect current version
+        id: current-version
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+        run: |
+          version=$(bowtie info \
+              --implementation "localhost/${IMAGE_WITH_TAG}" \
+              --format json | jq -r '.version // empty')
+          echo "value=${version}" >> $GITHUB_OUTPUT
+
+      - name: Log in to ghcr.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+      - name: Add tag with version to the image
+        env:
+          IMAGE_WITH_TAG: ${{ steps.build_image.outputs.image-with-tag }}
+          IMAGE_WITH_VERSION: "${{ steps.build_image.outputs.image }}:${{ steps.current-version.outputs.value }}"
+        run: podman tag ${IMAGE_WITH_TAG} ${IMAGE_WITH_VERSION}
+        if: inputs.publish-image
+
+      - name: Publish
+        id: push
+        uses: redhat-actions/push-to-registry@v2
+        with:
+          image: ${{ steps.build_image.outputs.image }}
+          tags: ${{ steps.current-version.outputs.value }} ${{ steps.build_image.outputs.tags }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+        if: inputs.publish-image
+
+      - name: Generate attestation for images
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+        if: inputs.publish-image

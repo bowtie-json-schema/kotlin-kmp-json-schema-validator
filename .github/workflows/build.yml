@@ -42,6 +42,7 @@ jobs:
               --implementation ${IMPL_NAME} \
               --format json | jq -r '.version // empty')
           echo "value=${version}" >> $GITHUB_OUTPUT
+          echo "Latest version: $version"
 
   build:
     needs: meta

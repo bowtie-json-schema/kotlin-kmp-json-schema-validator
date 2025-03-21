@@ -46,6 +46,12 @@ jobs:
   build:
     needs: meta
 
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
+
     uses: ./.github/workflows/build-image.yml
     with:
       image-name: ${{ needs.meta.outputs.implementation-name }}
@@ -112,6 +118,12 @@ jobs:
   # Executes only if 'automerge' is not skipped
   publish-on-automerge:
     needs: [meta, automerge]
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
 
     uses: ./.github/workflows/build-image.yml
     with:

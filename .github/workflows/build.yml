@@ -108,7 +108,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Job is required to automatically publish an image for successfully merged dependabot's PR.
-  # PR is merged with GITHUB_TOKEN and it does not trigger the workflow run on 'push'
+  # PR is merged with GITHUB_TOKEN and it does not trigger the workflow run on 'push'.
+  # Executes only if 'automerge' is not skipped
   publish-on-automerge:
     needs: [meta, automerge]
 

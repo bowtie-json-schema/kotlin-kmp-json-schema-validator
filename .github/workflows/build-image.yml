@@ -80,6 +80,7 @@ jobs:
               --implementation "localhost/${IMAGE_WITH_TAG}" \
               --format json | jq -r '.version // empty')
           echo "value=${version}" >> $GITHUB_OUTPUT
+          echo "Collected version: $version"
 
       - name: Log in to ghcr.io
         uses: redhat-actions/podman-login@v1

@@ -7,11 +7,25 @@ on:
 
 permissions: {}
 
+concurrency:
+  # in this case if several dependabot PRs are merged only the latest one will build and publish the image
+  group: dependabot-${{ github.event.workflow_run.event }}-${{ github.event.workflow_run.triggering_actor.login }}
+  cancel-in-progress: true
+
 jobs:
   build-and-publish:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Print trigger event
-        env:
-          EVENT_PAYLOAD: ${{ toJson(github.event) }}
-        run: echo $EVENT_PAYLOAD
+    if: |
+      github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.triggering_actor.login == 'dependabot[bot]'
+
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+      packages: write
+
+    uses: ./.github/workflows/build-image.yml
+    with:
+      is-latest: true
+      publish-image: true

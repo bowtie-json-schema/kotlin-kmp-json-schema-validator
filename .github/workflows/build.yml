@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       latest-version: ${{ steps.version.outputs.value }}
-      implementation-name: ${{ steps.impl.outputs.name }}
     steps:
 
       - name: Install bowtie
@@ -55,7 +54,6 @@ jobs:
 
     uses: ./.github/workflows/build-image.yml
     with:
-      image-name: ${{ needs.meta.outputs.implementation-name }}
       is-latest: ${{ github.ref == 'refs/heads/main' }}
       publish-image: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
@@ -113,21 +111,3 @@ jobs:
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Job is required to automatically publish an image for successfully merged dependabot's PR.
-  # PR is merged with GITHUB_TOKEN and it does not trigger the workflow run on 'push'.
-  # Executes only if 'automerge' is not skipped
-  publish-on-automerge:
-    needs: [meta, automerge]
-
-    permissions:
-      id-token: write
-      contents: read
-      attestations: write
-      packages: write
-
-    uses: ./.github/workflows/build-image.yml
-    with:
-      image-name: ${{ needs.meta.outputs.implementation-name }}
-      is-latest: ${{ github.event.pull_request.base.ref == 'main' }}
-      publish-image: true

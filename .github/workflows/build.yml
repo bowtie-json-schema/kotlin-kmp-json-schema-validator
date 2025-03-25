@@ -111,20 +111,3 @@ jobs:
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Job is required to automatically publish an image for successfully merged dependabot's PR.
-  # PR is merged with GITHUB_TOKEN and it does not trigger the workflow run on 'push'.
-  # Executes only if 'automerge' is not skipped
-  publish-on-automerge:
-    needs: [meta, automerge]
-
-    permissions:
-      id-token: write
-      contents: read
-      attestations: write
-      packages: write
-
-    uses: ./.github/workflows/build-image.yml
-    with:
-      is-latest: ${{ github.event.pull_request.base.ref == 'main' }}
-      publish-image: true

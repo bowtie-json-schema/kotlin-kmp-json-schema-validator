@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       latest-version: ${{ steps.version.outputs.value }}
-      implementation-name: ${{ steps.impl.outputs.name }}
     steps:
 
       - name: Install bowtie
@@ -55,7 +54,6 @@ jobs:
 
     uses: ./.github/workflows/build-image.yml
     with:
-      image-name: ${{ needs.meta.outputs.implementation-name }}
       is-latest: ${{ github.ref == 'refs/heads/main' }}
       publish-image: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
@@ -128,6 +126,5 @@ jobs:
 
     uses: ./.github/workflows/build-image.yml
     with:
-      image-name: ${{ needs.meta.outputs.implementation-name }}
       is-latest: ${{ github.event.pull_request.base.ref == 'main' }}
       publish-image: true

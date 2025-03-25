@@ -3,10 +3,6 @@ name: Build test harness image
 on:
   workflow_call:
     inputs:
-      image-name:
-        type: string
-        required: true
-        description: 'Name for the image to build'
       publish-image:
         type: boolean
         default: false
@@ -46,6 +42,12 @@ jobs:
       - name: Install bowtie
         uses: bowtie-json-schema/bowtie@main
 
+      - name: Compute implementation name
+        id: impl
+        env:
+          GH_REPOSITORY: ${{ github.repository }}
+        run: echo "name=$(echo ${GH_REPOSITORY} | awk -F '/' '{print $2}')" >> $GITHUB_OUTPUT
+
       - name: Build
         id: build_image
         uses: redhat-actions/buildah-build@v2
@@ -53,7 +55,7 @@ jobs:
           context: '.'
           containerfiles: |
             Dockerfile
-          image: ${{ inputs.image-name }}
+          image: ${{ steps.impl.outputs.name }}
           tags: ${{ github.sha }} ${{ inputs.is-latest && 'latest' || '' }}
           archs: amd64, arm64
 

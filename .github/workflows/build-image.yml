@@ -90,7 +90,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
           registry: ${{ env.IMAGE_REGISTRY }}
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: inputs.publish-image
 
       - name: Add tag with version to the image
         env:

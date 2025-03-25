@@ -1,0 +1,17 @@
+name: Build and publish test harness image after Dependabot PR
+
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] we are aware that it is a dengerouse trigger but we need a way to build an image after Dependabot PR
+    types: [ completed ]
+    workflows: [ 'Rebuild Bowtie Image' ]
+
+permissions: {}
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print trigger event
+        env:
+          EVENT_PAYLOAD: ${{ toJson(github.event) }}
+        run: echo $EVENT_PAYLOAD

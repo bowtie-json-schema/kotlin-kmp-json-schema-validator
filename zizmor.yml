@@ -2,7 +2,6 @@ rules:
   unpinned-uses:
     config:
       policies:
-        actions/attest-build-provenance: hash-pin
         actions/*: ref-pin
         redhat-actions/*: hash-pin
         "*": ref-pin

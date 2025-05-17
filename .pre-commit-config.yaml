@@ -14,8 +14,8 @@ repos:
       - id: mixed-line-ending
         args: [--fix, lf]
       - id: trailing-whitespace
-  - repo: https://github.com/woodruffw/zizmor-pre-commit
-    rev: v1.5.2
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.7.0
     hooks:
     - id: zizmor
 

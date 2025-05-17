@@ -3,5 +3,4 @@ rules:
     config:
       policies:
         actions/*: ref-pin
-        redhat-actions/*: hash-pin
-        "*": ref-pin
+        bowtie-json-schema/bowtie: ref-pin

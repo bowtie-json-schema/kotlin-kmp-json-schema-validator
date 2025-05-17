@@ -73,7 +73,7 @@ jobs:
       contents: write
 
     env:
-      TAG: v${{ needs.meta.outputs.latest-version }}
+      VERSION: ${{ needs.meta.outputs.latest-version }}
       COMMIT: ${{ github.event.pull_request.base.sha || github.event.before }} # either the PR base ref or previous commit in the branch
       GH_REPOSITORY: ${{ github.repository }}
 
@@ -82,6 +82,7 @@ jobs:
       - name: Create a release for previous implementation version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: harness-release-${{ env.VERSION }}
         run: >
           gh api
           --method POST
@@ -90,8 +91,8 @@ jobs:
           /repos/${GH_REPOSITORY}/releases
           -f "tag_name=$TAG"
           -f "target_commitish=$COMMIT"
-          -f "name=$TAG"
-          -f "body=Automatic release for $TAG"
+          -f "name=$VERSION"
+          -f "body=Automatic release for $VERSION"
           -F "generate_release_notes=true"
 
 

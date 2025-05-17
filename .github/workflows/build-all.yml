@@ -54,7 +54,7 @@ jobs:
 
       - name: Build
         id: build_image
-        uses: redhat-actions/buildah-build@v2
+        uses: redhat-actions/buildah-build@7a95fa7ee0f02d552a32753e7414641a04307056 # v2.13
         with:
           context: '.'
           containerfiles: |
@@ -93,7 +93,7 @@ jobs:
         run: echo "current_version=${CURRENT_VERSION}"
 
       - name: Log in to ghcr.io
-        uses: redhat-actions/podman-login@v1
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603 # v1.7
         with:
           username: ${{ github.actor }}
           password: ${{ github.token }}
@@ -107,14 +107,14 @@ jobs:
 
       - name: Publish
         id: push
-        uses: redhat-actions/push-to-registry@v2
+        uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2.8
         with:
           image: ${{ steps.build_image.outputs.image }}
           tags: ${{ steps.current-version.outputs.value }} ${{ steps.build_image.outputs.tags }}
           registry: ${{ env.IMAGE_REGISTRY }}
 
       - name: Generate attestation for images
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@db473fddc028af60658334401dc6fa3ffd8669fd # v2.3.0
         with:
           subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
           subject-digest: ${{ steps.push.outputs.digest }}

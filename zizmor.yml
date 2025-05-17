@@ -3,4 +3,4 @@ rules:
     config:
       policies:
         actions/*: ref-pin
-        "*": ref-pin
+        bowtie-json-schema/bowtie: ref-pin

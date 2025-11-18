@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM gradle:9.2.0-jdk17 AS builder
+FROM --platform=$BUILDPLATFORM gradle:9.2.1-jdk17 AS builder
 WORKDIR /opt/app
 COPY gradle/libs.versions.toml gradle/
 COPY settings.gradle.kts .

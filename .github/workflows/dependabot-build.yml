@@ -26,6 +26,7 @@ jobs:
       contents: read
       attestations: write
       packages: write
+      artifact-metadata: write
 
     uses: ./.github/workflows/build-image.yml
     with:

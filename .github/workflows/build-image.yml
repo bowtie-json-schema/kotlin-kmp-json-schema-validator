@@ -33,6 +33,7 @@ jobs:
       contents: read
       attestations: write
       packages: write
+      artifact-metadata: write
 
     steps:
       - uses: actions/checkout@v6
@@ -109,7 +110,7 @@ jobs:
         if: inputs.publish-image
 
       - name: Generate attestation for images
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest@v4
         with:
           subject-name: ${{ env.IMAGE_REGISTRY }}/${{ steps.build_image.outputs.image }}
           subject-digest: ${{ steps.push.outputs.digest }}

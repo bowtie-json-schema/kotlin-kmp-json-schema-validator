@@ -24,4 +24,4 @@ jobs:
     permissions:
       contents: write # to publish the report release
       packages: read # to pull the harness's own image
-    uses: bowtie-json-schema/bowtie/.github/workflows/harness-report.yml@b92793e61423c3a9f405f2e32afcbc7498d6665e # main
+    uses: bowtie-json-schema/bowtie/.github/workflows/harness-report.yml@672d2109fad58a69b8a7e18b0cdb3cea36d47b26 # main

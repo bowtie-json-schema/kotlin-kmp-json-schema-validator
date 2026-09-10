@@ -28,7 +28,7 @@ jobs:
       packages: write
       artifact-metadata: write
 
-    uses: ./.github/workflows/build-image.yml
+    uses: $/.github/workflows/build-image.yml
     with:
       is-latest: true
       publish-image: true

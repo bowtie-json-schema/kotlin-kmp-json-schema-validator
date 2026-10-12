@@ -45,6 +45,21 @@ private val SUPPORTED_DIALECTS: Set<String> = hashSetOf(
     "https://json-schema.org/draft/2020-12/schema",
 )
 
+// Older versions of Bowtie send every remote schema in the test suite's
+// layout from before its unified format, which keeps each dialect's
+// remote schemas (often without $schema) in a directory of its own.
+private val OLD_REMOTES_DIRECTORY = Regex("^http://localhost:1234/([^/]+)/")
+
+private val REMOTES_DIRECTORY_DIALECTS: Map<String, SchemaType> = mapOf(
+    "draft4" to SchemaType.DRAFT_4,
+    "draft6" to SchemaType.DRAFT_6,
+    "draft7" to SchemaType.DRAFT_7,
+    "draft2019-09" to SchemaType.DRAFT_2019_09,
+    "draft2020-12" to SchemaType.DRAFT_2020_12,
+)
+
+private val UNSUPPORTED_REMOTES_DIRECTORIES: Set<String> = setOf("draft3", "v1")
+
 enum class Result { CONTINUE, STOP }
 
 class BowtieSampsonSchemaValidatorLauncher(
@@ -127,14 +142,13 @@ class BowtieSampsonSchemaValidatorLauncher(
         .apply {
             currentDialect?.also(this::registerWellKnown)
             for ((uri, schema) in command.case.registry) {
-                if (skipSchema(schema)) {
+                val directory = OLD_REMOTES_DIRECTORY.find(uri)?.groupValues?.get(1)
+                if (skipSchema(schema) || directory in UNSUPPORTED_REMOTES_DIRECTORIES) {
                     continue
                 }
-                var schemaType: SchemaType? = null
-                if (uri.contains("draft4", ignoreCase = true)) {
-                    // remote schema for draft 4 does not contain $schema block
-                    schemaType = SchemaType.DRAFT_4
-                }
+                // external schemas without $schema use the current dialect,
+                // or the one named by their directory in the old suite's layout
+                val schemaType = REMOTES_DIRECTORY_DIALECTS[directory] ?: currentDialect
                 @Suppress("detekt:TooGenericExceptionCaught")
                 try {
                     register(schema, Uri.parse(uri), schemaType)

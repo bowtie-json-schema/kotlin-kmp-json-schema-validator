@@ -50,7 +50,7 @@ private val SUPPORTED_DIALECTS: Set<String> = hashSetOf(
 // remote schemas (often without $schema) in a directory of its own.
 private val OLD_REMOTES_DIRECTORY = Regex("^http://localhost:1234/([^/]+)/")
 
-private val REMOTES_DIRECTORY_DIALECTS: Map<String?, SchemaType> = mapOf(
+private val REMOTES_DIRECTORY_DIALECTS: Map<String, SchemaType> = mapOf(
     "draft4" to SchemaType.DRAFT_4,
     "draft6" to SchemaType.DRAFT_6,
     "draft7" to SchemaType.DRAFT_7,
@@ -58,7 +58,7 @@ private val REMOTES_DIRECTORY_DIALECTS: Map<String?, SchemaType> = mapOf(
     "draft2020-12" to SchemaType.DRAFT_2020_12,
 )
 
-private val UNSUPPORTED_REMOTES_DIRECTORIES: Set<String?> = setOf("draft3", "v1")
+private val UNSUPPORTED_REMOTES_DIRECTORIES: Set<String> = setOf("draft3", "v1")
 
 enum class Result { CONTINUE, STOP }
 

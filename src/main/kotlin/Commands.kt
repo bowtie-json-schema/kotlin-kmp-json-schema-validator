@@ -21,6 +21,7 @@ sealed class Command {
     class Run(
         val seq: JsonElement,
         val case: TestCase,
+        val output: String? = null,
     ) : Command()
 
     @Serializable

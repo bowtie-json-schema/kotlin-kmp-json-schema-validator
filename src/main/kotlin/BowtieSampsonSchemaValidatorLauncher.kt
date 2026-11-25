@@ -25,6 +25,7 @@ fun main() {
             ignoreUnknownKeys = true
             prettyPrint = false
             encodeDefaults = true
+            explicitNulls = false
             classDiscriminatorMode = ClassDiscriminatorMode.NONE
         }
         val processor = BowtieSampsonSchemaValidatorLauncher(outputWriter, json)
@@ -102,6 +103,25 @@ class BowtieSampsonSchemaValidatorLauncher(
 
     private fun handleRun(command: Command.Run) {
         requireStarted()
+        if (command.output != null && command.output != "flag") {
+            writer.writeLine(
+                json.encodeToString(
+                    RunResponse.Result(
+                        seq = command.seq,
+                        results = command.case.tests.map {
+                            TestResult.Skipped(
+                                message = "unsupported output format: ${command.output}",
+                            )
+                        },
+                    ),
+                ),
+            )
+        } else {
+            runFlagCase(command)
+        }
+    }
+
+    private fun runFlagCase(command: Command.Run) {
         testFilter.shouldSkipCase(command.case.description)?.also { reason ->
             writer.writeLine(
                 json.encodeToString(
